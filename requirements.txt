@@ -1,0 +1,5 @@
+Flask>=3.0,<4
+
+# 说明：以下为系统级依赖（不是 pip 包），需在 Kali Linux 上单独安装：
+#   sudo apt install aircrack-ng hashcat hcxdumptool hcxpcapngtool iw wireless-tools
+# 并需要支持监听模式（monitor mode）的无线网卡。

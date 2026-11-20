@@ -1,0 +1,1104 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>wifitool · Wi-Fi 安全测试台</title>
+<style>
+  :root {
+    --bg: #0a1020;
+    --bg2: #0e1628;
+    --card: #121d33;
+    --card2: #16233d;
+    --line: #1f3050;
+    --line2: #2b4066;
+    --txt: #e6edf7;
+    --dim: #8ba0be;
+    --dim2: #5f7799;
+    --accent: #2dd4bf;
+    --accent2: #22d3ee;
+    --ok: #34d399;
+    --warn: #fbbf24;
+    --err: #f87171;
+    --purple: #a78bfa;
+    --radius: 14px;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background:
+      radial-gradient(1200px 600px at 15% -10%, #16304d 0%, transparent 55%),
+      radial-gradient(900px 500px at 95% 0%, #1b2044 0%, transparent 50%),
+      var(--bg);
+    color: var(--txt);
+    font: 14.5px/1.6 system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    color-scheme: dark;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---------- 布局 ---------- */
+  .shell {
+    display: grid;
+    grid-template-columns: 232px minmax(0, 1fr);
+    gap: 22px;
+    max-width: 1380px;
+    margin: 0 auto;
+    padding: 22px 20px 60px;
+  }
+  @media (max-width: 940px) { .shell { grid-template-columns: 1fr; } }
+
+  /* ---------- 顶部 ---------- */
+  .topbar {
+    grid-column: 1 / -1;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 14px;
+    padding: 14px 18px;
+    background: linear-gradient(180deg, rgba(45,212,191,.07), transparent), var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+  .brand { display: flex; align-items: baseline; gap: 10px; margin-right: auto; }
+  .brand h1 {
+    margin: 0; font-size: 19px; letter-spacing: .3px;
+    background: linear-gradient(90deg, var(--accent2), var(--accent) 60%, var(--purple));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .brand span { color: var(--dim2); font-size: 12px; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 5px 12px; border-radius: 999px;
+    background: var(--bg2); border: 1px solid var(--line2);
+    font-size: 12.5px; color: var(--dim);
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dim2); flex: none; }
+  .dot.on { background: var(--ok); box-shadow: 0 0 0 4px rgba(52,211,153,.15); animation: pulse 1.6s infinite; }
+  .dot.busy { background: var(--warn); box-shadow: 0 0 0 4px rgba(251,191,36,.15); animation: pulse 1.2s infinite; }
+  @keyframes pulse { 50% { opacity: .45; } }
+
+  /* ---------- 导航 ---------- */
+  nav { display: flex; flex-direction: column; gap: 6px; position: sticky; top: 22px; align-self: start; }
+  @media (max-width: 940px) { nav { position: static; flex-direction: row; flex-wrap: wrap; } }
+  nav button {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 13px; width: 100%;
+    background: transparent; border: 1px solid transparent; border-radius: 10px;
+    color: var(--dim); font: inherit; text-align: left; cursor: pointer;
+    transition: .16s;
+  }
+  nav button:hover { background: var(--bg2); color: var(--txt); }
+  nav button.active {
+    background: linear-gradient(90deg, rgba(45,212,191,.14), transparent);
+    border-color: rgba(45,212,191,.35); color: var(--accent);
+  }
+  nav button i { font-style: normal; font-size: 15px; width: 18px; text-align: center; }
+  @media (max-width: 940px) { nav button { width: auto; } nav button span { display: none; } }
+
+  /* ---------- 卡片 ---------- */
+  main { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+  .card {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: var(--radius); overflow: hidden;
+    box-shadow: 0 10px 30px -18px #000;
+  }
+  .card > header {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 14px 18px; border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, rgba(255,255,255,.02), transparent);
+  }
+  .card > header h2 { margin: 0; font-size: 15px; font-weight: 650; letter-spacing: .2px; }
+  .card > header .hint { color: var(--dim2); font-size: 12.5px; }
+  .card > header .spacer { margin-left: auto; }
+  .card .body { padding: 18px; }
+  section[hidden] { display: none !important; }
+
+  /* ---------- 表单 ---------- */
+  .grid { display: grid; gap: 14px; }
+  .g2 { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+  .g3 { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+  label.field { display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; color: var(--dim); }
+  input, select {
+    width: 100%; min-height: 40px; padding: 9px 12px;
+    background: var(--bg2); color: var(--txt);
+    border: 1px solid var(--line2); border-radius: 9px;
+    font: inherit; transition: .15s;
+  }
+  input:focus, select:focus {
+    outline: none; border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(45,212,191,.14);
+  }
+  input::placeholder { color: var(--dim2); }
+  .check { display: flex; align-items: center; gap: 9px; color: var(--dim); font-size: 13px; cursor: pointer; }
+  .check input { width: 17px; min-height: 17px; accent-color: var(--accent); }
+
+  button.btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    min-height: 40px; padding: 9px 20px;
+    background: linear-gradient(180deg, var(--accent), #14b8a6);
+    color: #04231f; font-weight: 700; font: inherit; font-weight: 700;
+    border: none; border-radius: 9px; cursor: pointer; transition: .15s;
+  }
+  button.btn:hover:not(:disabled) { filter: brightness(1.08); transform: translateY(-1px); }
+  button.btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+  button.btn.ghost {
+    background: var(--bg2); color: var(--txt);
+    border: 1px solid var(--line2); font-weight: 500;
+  }
+  button.btn.ghost:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  button.btn.danger { background: linear-gradient(180deg, #fb7185, #e11d48); color: #2a0410; }
+  button.btn.sm { min-height: 30px; padding: 4px 11px; font-size: 12.5px; border-radius: 7px; }
+
+  /* ---------- 表格 ---------- */
+  .tablewrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--line); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th {
+    color: var(--dim2); font-weight: 600; font-size: 11.5px;
+    text-transform: uppercase; letter-spacing: .7px;
+    background: var(--bg2); position: sticky; top: 0;
+  }
+  tbody tr { transition: .12s; }
+  tbody tr:hover { background: rgba(45,212,191,.055); }
+  tbody tr:last-child td { border-bottom: none; }
+  td.mono, .mono { font-family: var(--mono); font-size: 12.5px; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .empty { color: var(--dim2); text-align: center; padding: 26px; }
+
+  /* ★ 操作列始终贴右边：表格再宽，按钮也不会被挤出视野 */
+  #ap-rows th:last-child,
+  #ap-rows td:last-child {
+    position: sticky;
+    right: 0;
+    z-index: 1;
+    background: var(--card);
+    box-shadow: -10px 0 14px -8px rgba(0, 0, 0, .75);
+  }
+  #ap-rows th:last-child { background: var(--bg2); }
+  #ap-rows tr:hover td:last-child { background: #17293f; }
+
+  /* ★ SSID 允许换行，但不要硬拆英文单词 */
+  #ap-rows td:first-child {
+    white-space: normal;
+    word-break: normal;
+    overflow-wrap: anywhere;
+    min-width: 150px;
+    max-width: 260px;
+  }
+
+  .tag {
+    display: inline-block; padding: 2px 8px; border-radius: 6px;
+    font-size: 11.5px; font-weight: 600;
+    background: rgba(45,212,191,.13); color: var(--accent);
+  }
+  .tag.wpa3 { background: rgba(167,139,250,.15); color: var(--purple); }
+  .tag.open { background: rgba(248,113,113,.15); color: var(--err); }
+  .tag.muted { background: rgba(139,160,190,.14); color: var(--dim); }
+  .sig { font-family: var(--mono); font-size: 12px; }
+  .sig.good { color: var(--ok); } .sig.mid { color: var(--warn); } .sig.bad { color: var(--err); }
+
+  /* ---------- 结果块 ---------- */
+  .result {
+    margin-top: 16px; padding: 15px 17px;
+    background: var(--bg2); border: 1px solid var(--line2);
+    border-left: 3px solid var(--accent); border-radius: 10px;
+    font-size: 13.5px;
+  }
+  .result.ok { border-left-color: var(--ok); }
+  .result.err { border-left-color: var(--err); }
+  .result h3 { margin: 0 0 10px; font-size: 14px; }
+  .kv { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 7px 14px; font-size: 13.5px; }
+  .kv dt { color: var(--dim2); }
+  .kv dd { margin: 0; overflow-wrap: anywhere; }
+  .pw {
+    font-family: var(--mono); font-size: 20px; letter-spacing: 1.5px;
+    color: var(--ok); background: rgba(52,211,153,.09);
+    padding: 9px 14px; border-radius: 9px; display: inline-block;
+    border: 1px solid rgba(52,211,153,.3);
+  }
+
+  /* ---------- 日志 ---------- */
+  #logcard > .body { padding: 0; }
+  #log {
+    margin: 0; padding: 14px 17px; max-height: 260px; min-height: 88px; overflow: auto;
+    font-family: var(--mono); font-size: 12.5px; line-height: 1.75;
+    color: var(--dim); white-space: pre-wrap; overflow-wrap: anywhere;
+    background: #070d19;
+  }
+  #log .l-prompt { color: var(--accent); }
+  #log .l-err { color: var(--err); }
+  #toast {
+    position: fixed; right: 20px; bottom: 20px; z-index: 50;
+    display: flex; flex-direction: column; gap: 9px; pointer-events: none;
+  }
+  #toast div {
+    padding: 11px 16px; border-radius: 10px;
+    background: var(--card2); border: 1px solid var(--line2);
+    box-shadow: 0 12px 30px -12px #000; font-size: 13.5px;
+    animation: pop .22s ease-out;
+  }
+  #toast div.ok { border-color: rgba(52,211,153,.5); color: var(--ok); }
+  #toast div.err { border-color: rgba(248,113,113,.5); color: var(--err); }
+  @keyframes pop { from { opacity: 0; transform: translateY(6px); } }
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <div class="topbar">
+    <div class="brand">
+      <h1>wifitool</h1>
+      <span>Wi-Fi 安全测试台</span>
+    </div>
+    <div class="pill"><span class="dot" id="dot"></span><span id="sttext">空闲</span></div>
+    <label class="field" style="width:200px">
+      <input id="token" type="password" autocomplete="off" placeholder="访问令牌（服务端未设置可留空）">
+    </label>
+    <button class="btn ghost sm" id="refresh">刷新状态</button>
+  </div>
+
+  <nav>
+    <button data-view="iface"  class="active"><i>◈</i><span>网卡</span></button>
+    <button data-view="scan"><i>◉</i><span>扫描 AP</span></button>
+    <button data-view="capture"><i>⇄</i><span>抓握手</span></button>
+    <button data-view="pmkid"><i>✦</i><span>PMKID</span></button>
+    <button data-view="crack"><i>⚿</i><span>破解</span></button>
+    <button data-view="chaos"><i>😈</i><span>chaos</span></button>
+  </nav>
+
+  <main>
+
+    <!-- ============ 网卡 ============ -->
+    <section class="card" data-panel="iface">
+      <header>
+        <h2>网卡管理</h2>
+        <span class="hint">攻击前需要 monitor 模式</span>
+        <span class="spacer"></span>
+        <button class="btn ghost sm" id="reload-iface">重新枚举</button>
+      </header>
+      <div class="body">
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>接口</th><th>PHY</th><th>当前模式</th><th style="width:220px">操作</th></tr></thead>
+            <tbody id="iface-rows"><tr><td colspan="4" class="empty">点“重新枚举”加载网卡</td></tr></tbody>
+          </table>
+        </div>
+        <div id="iface-result"></div>
+      </div>
+    </section>
+
+    <!-- ============ 扫描 ============ -->
+    <section class="card" data-panel="scan" hidden>
+      <header>
+        <h2>扫描周边 AP</h2>
+        <span class="hint">需要 monitor 模式，扫到的 AP 可以直接抓握手 / 打 PMKID</span>
+      </header>
+      <div class="body">
+        <form id="scan-form" class="grid g3">
+          <label class="field">网卡接口
+            <input id="scan-iface" value="wlan0" required>
+          </label>
+          <label class="field">扫描时长（秒）
+            <input id="scan-duration" type="number" value="15" min="3" max="300" required>
+          </label>
+          <div style="display:flex;align-items:flex-end">
+            <button class="btn" type="submit">开始扫描</button>
+          </div>
+        </form>
+        <div id="scan-result"></div>
+
+        <div style="margin-top:18px">
+          <div class="tablewrap">
+            <table>
+              <thead><tr>
+                <th>SSID</th><th>BSSID</th><th>信道</th><th>加密 / Cipher</th><th>认证</th>
+                <th class="num" style="text-transform:none">信号 dBm</th><th style="width:210px">操作</th>
+              </tr></thead>
+              <tbody id="ap-rows"><tr><td colspan="7" class="empty">还没有扫描结果</td></tr></tbody>
+            </table>
+          </div>
+          <p style="color:var(--dim2);font-size:12.5px;margin:10px 2px 0">
+            客户端：<strong id="sta-count">—</strong> 个（点击 AP 行的按钮会自动把 BSSID / 信道填进下面的表单）
+          </p>
+        </div>
+
+        <!-- ★ 在线客户端：/api/scan 会返回 stations，这里必须单独渲染出来 -->
+        <div style="margin-top:22px">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+            <h3 style="margin:0;font-size:13.5px;font-weight:650">在线客户端</h3>
+            <span style="color:var(--dim2);font-size:12px">
+              点「抓它的握手」会自动填好 BSSID + 客户端 MAC，并勾上 deauth
+            </span>
+          </div>
+          <div class="tablewrap">
+            <table>
+              <thead><tr>
+                <th>客户端 MAC</th>
+                <th class="num" style="text-transform:none">信号 dBm</th>
+                <th class="num">包数</th>
+                <th>关联 AP</th>
+                <th>探测的 SSID</th>
+                <th style="width:196px">操作</th>
+              </tr></thead>
+              <tbody id="sta-rows"><tr><td colspan="6" class="empty">还没有扫描结果</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 抓握手 ============ -->
+    <section class="card" data-panel="capture" hidden>
+      <header>
+        <h2>抓取握手包</h2>
+        <span class="hint">需要客户端在线；可开 deauth 主动踢下线</span>
+      </header>
+      <div class="body">
+        <form id="capture-form" class="grid g3">
+          <label class="field">目标 BSSID
+            <input id="capture-bssid" placeholder="AA:BB:CC:DD:EE:FF" required>
+          </label>
+          <label class="field">网卡接口
+            <input id="capture-iface" value="wlan0" required>
+          </label>
+          <label class="field">信道（留空=自动探测）
+            <input id="capture-channel" type="number" placeholder="自动">
+          </label>
+          <label class="field">最长时长（秒）
+            <input id="capture-duration" type="number" value="60" min="5" max="600" required>
+          </label>
+          <label class="field">踢人次数
+            <input id="capture-count" type="number" value="5" min="1" max="50">
+          </label>
+          <label class="field">指定客户端
+            <input id="capture-station" placeholder="留空=自动选 / all=广播">
+          </label>
+          <div style="display:flex;align-items:flex-end;gap:12px;grid-column:1/-1;flex-wrap:wrap">
+            <label class="check">
+              <input type="checkbox" id="capture-deauth"> 启用 deauth（先听后踢）
+            </label>
+            <button class="btn" type="submit">开始抓包</button>
+          </div>
+        </form>
+        <div id="capture-result"></div>
+      </div>
+    </section>
+
+    <!-- ============ PMKID ============ -->
+    <section class="card" data-panel="pmkid" hidden>
+      <header>
+        <h2>PMKID 攻击</h2>
+        <span class="hint">不需要客户端在线，但要看 AP 是否返回 PMKID</span>
+      </header>
+      <div class="body">
+        <form id="pmkid-form" class="grid g3">
+          <label class="field">目标 BSSID
+            <input id="pmkid-bssid" placeholder="AA:BB:CC:DD:EE:FF" required>
+          </label>
+          <label class="field">网卡接口
+            <input id="pmkid-iface" value="wlan0" required>
+          </label>
+          <label class="field">信道（留空=自动探测）
+            <input id="pmkid-channel" type="number" placeholder="自动">
+          </label>
+          <label class="field">采集时长（秒）
+            <input id="pmkid-duration" type="number" value="40" min="10" max="600" required>
+          </label>
+          <div style="display:flex;align-items:flex-end">
+            <button class="btn" type="submit">开始 PMKID</button>
+          </div>
+        </form>
+        <div id="pmkid-result"></div>
+      </div>
+    </section>
+
+    <!-- ============ 破解 ============ -->
+    <section class="card" data-panel="crack" hidden>
+      <header>
+        <h2>破解 hash</h2>
+        <span class="hint">输入 .22000 或 .cap 路径；纯离线，不用网卡</span>
+      </header>
+      <div class="body">
+        <form id="crack-form" class="grid g3">
+          <label class="field" style="grid-column:1/-1">
+            <span>Hash 文件（.22000 / .cap）</span>
+            <input id="crack-hash" type="text" autocomplete="off" spellcheck="false" required
+                   placeholder="在这里输入完整路径，例如 /tmp/WifiHackingTool-pmkid-xxxx/pmkid.22000">
+            <small style="color:var(--dim2);font-size:12px;line-height:1.5">
+              ↑ 可以直接输入 / 粘贴；也可以从「抓握手」或「PMKID」的结果里点「去破解」自动填入
+            </small>
+          </label>
+          <label class="field" style="grid-column:1/-1">字典文件
+            <input id="crack-wordlist" value="/usr/share/wordlists/rockyou.txt" required>
+          </label>
+          <label class="field">只打这个 BSSID（可留空）
+            <input id="crack-bssid" placeholder="多网络时才有用">
+          </label>
+          <label class="field">最长破解秒数（0=不限）
+            <input id="crack-timeout" type="number" value="1800" min="0">
+          </label>
+          <div style="display:flex;align-items:flex-end">
+            <button class="btn" type="submit">开始破解</button>
+          </div>
+        </form>
+        <div id="crack-result"></div>
+      </div>
+    </section>
+
+    <!-- ============ chaos（彩蛋） ============ -->
+    <section class="card" data-panel="chaos" hidden>
+      <header>
+        <h2>😈 断网攻击</h2>
+        <span class="hint">无限制发 deauth，让目标反复掉线重连</span>
+      </header>
+      <div class="body">
+        <div style="padding:12px 14px;margin-bottom:16px;
+                    border:1px solid rgba(248,113,113,.35);border-radius:10px;
+                    background:rgba(248,113,113,.06);font-size:13px;
+                    color:var(--err);line-height:1.65">
+          ⚠ 这是 DoS 攻击：<b>仅限你已获授权的网络</b>。<br>
+          会让目标客户端（以及同一信道上其他设备）持续断网；
+          同时开着「抓握手」会捞到大量握手。
+        </div>
+
+        <form id="chaos-form" class="grid g3">
+          <label class="field">目标 BSSID
+            <input id="chaos-bssid" placeholder="AA:BB:CC:DD:EE:FF" required>
+          </label>
+          <label class="field">网卡接口
+            <input id="chaos-iface" value="wlan0" required>
+          </label>
+          <label class="field">信道（必填）
+            <input id="chaos-channel" type="number" placeholder="必须和 AP 一致" required>
+          </label>
+          <label class="field">目标客户端
+            <input id="chaos-station" value="all" placeholder="all = 踢这个 AP 下所有人">
+          </label>
+          <label class="field">持续秒数
+            <input id="chaos-duration" type="number" value="60" min="5" max="3600" required>
+          </label>
+          <div style="display:flex;align-items:flex-end">
+            <button class="btn danger" type="submit">开始断网</button>
+          </div>
+        </form>
+
+        <div id="chaos-result"></div>
+      </div>
+    </section>
+
+    <!-- ============ 日志 ============ -->
+    <section class="card" id="logcard">
+      <header>
+        <h2>实时日志</h2>
+        <span class="hint" id="log-hint">当前没有任务</span>
+        <span class="spacer"></span>
+        <button class="btn ghost sm" id="clear-log">清空</button>
+      </header>
+      <div class="body"><pre id="log">等待操作…</pre></div>
+    </section>
+
+  </main>
+</div>
+
+<div id="toast"></div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ---------------- 工具 ----------------
+  const $ = id => document.getElementById(id);
+  const el = (tag, cls, text) => {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  };
+
+  const TOKEN_KEY = "wifitool.token";
+  const TASK_KEY = "wifitool.task";
+
+  const store = {
+    get token() { return localStorage.getItem(TOKEN_KEY) || ""; },
+    set token(v) { v ? localStorage.setItem(TOKEN_KEY, v) : localStorage.removeItem(TOKEN_KEY); },
+  };
+
+  function toast(msg, kind) {
+    const box = $("toast");
+    const n = el("div", kind || "", msg);
+    box.appendChild(n);
+    setTimeout(() => n.remove(), 3600);
+  }
+
+  // ---------------- HTTP ----------------
+  async function api(path, options = {}) {
+    const headers = { ...(options.headers || {}) };
+    const t = store.token.trim();
+    if (t) headers["X-Token"] = t;
+
+    const res = await fetch(path, { cache: "no-store", ...options, headers });
+    let data = null;
+    try { data = await res.json(); } catch (_) {}
+
+    if (!res.ok) {
+      const err = new Error((data && data.error) || ("HTTP " + res.status));
+      err.status = res.status;
+      throw err;
+    }
+    return data;
+  }
+
+  const postJSON = (path, body) =>
+    api(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+  // ---------------- 状态 ----------------
+  const app = {
+    busy: false,
+    taskId: sessionStorage.getItem(TASK_KEY) || null,
+    pollTimer: null,
+  };
+
+  function setBusy(on, text) {
+    app.busy = on;
+    $("dot").className = "dot " + (on ? "busy" : "on");
+    $("sttext").textContent = text || (on ? "运行中" : "空闲");
+    document.querySelectorAll('form button[type="submit"]').forEach(b => { b.disabled = on; });
+  }
+
+  function logLines(lines, isErr) {
+    const box = $("log");
+    if (!lines || !lines.length) return;
+    if (box.dataset.fresh !== "1") { box.textContent = ""; box.dataset.fresh = "1"; }
+    for (const line of lines) {
+      const n = el("div", isErr ? "l-err" : "");
+      n.textContent = line;
+      box.appendChild(n);
+    }
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function resetLog(title) {
+    const box = $("log");
+    box.textContent = "";
+    box.dataset.fresh = "1";
+    const n = el("div", "l-prompt", "$ " + title);
+    box.appendChild(n);
+  }
+
+  // ---------------- 视图切换 ----------------
+  document.querySelectorAll("nav button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll("nav button").forEach(b => b.classList.toggle("active", b === btn));
+      const view = btn.dataset.view;
+      document.querySelectorAll("[data-panel]").forEach(p => {
+        p.hidden = p.dataset.panel !== view;
+      });
+    });
+  });
+
+  function goto(view) {
+    const btn = document.querySelector('nav button[data-view="' + view + '"]');
+    if (btn) btn.click();
+  }
+
+  // ---------------- 任务轮询 ----------------
+  function stopPolling() {
+    if (app.pollTimer) { clearTimeout(app.pollTimer); app.pollTimer = null; }
+  }
+
+  function forgetTask() {
+    app.taskId = null;
+    sessionStorage.removeItem(TASK_KEY);
+  }
+
+  /**
+   * 提交任务并开始轮询
+   * @param {string} cmd      命令名（用于日志标题）
+   * @param {string} path     提交路径
+   * @param {object} body     请求体
+   * @param {function} onDone 拿到 result 后调用
+   */
+  async function runTask(cmd, path, body, onDone) {
+    if (app.busy) { toast("已有任务在跑，等它结束", "err"); return; }
+
+    setBusy(true, cmd + " 运行中");
+    resetLog(cmd);
+    $("log-hint").textContent = cmd + " 运行中…";
+
+    try {
+      const res = await postJSON(path, body);
+      app.taskId = res.task_id;
+      sessionStorage.setItem(TASK_KEY, app.taskId);
+      pollTask(cmd, onDone);
+    } catch (e) {
+      setBusy(false);
+      $("log-hint").textContent = "失败";
+      logLines([e.message], true);
+      toast(e.message, "err");
+    }
+  }
+
+  function pollTask(cmd, onDone) {
+    stopPolling();
+    const id = app.taskId;
+    if (!id) return;
+
+    app.pollTimer = setTimeout(async () => {
+      try {
+        const task = await api("/api/task/" + encodeURIComponent(id));
+
+        if (task.progress && task.progress.length) logLines(task.progress);
+
+        if (task.status === "done") {
+          forgetTask();
+          setBusy(false, "空闲");
+          $("log-hint").textContent = cmd + " 完成";
+          if (onDone) onDone(task.result);
+          return;
+        }
+        if (task.status === "failed") {
+          forgetTask();
+          setBusy(false, "空闲");
+          $("log-hint").textContent = cmd + " 失败";
+          logLines([task.error || "未知错误"], true);
+          toast(task.error || "任务失败", "err");
+          return;
+        }
+        pollTask(cmd, onDone);
+      } catch (e) {
+        if (e.status === 404) {
+          forgetTask();
+          setBusy(false, "空闲");
+          logLines(["任务已不存在（服务可能重启过）"], true);
+        } else {
+          stopPolling();
+          setBusy(false, "空闲");
+          logLines([e.message], true);
+          toast(e.message, "err");
+        }
+      }
+    }, 900);
+  }
+
+  // ---------------- 结果渲染 ----------------
+  function resultBox(host, kind, title, rows, extraNode) {
+    host.replaceChildren();
+    const box = el("div", "result " + (kind || ""));
+    box.appendChild(el("h3", "", title));
+
+    const dl = el("dl", "kv");
+    for (const [k, v] of rows) {
+      dl.appendChild(el("dt", "", k));
+      const dd = el("dd");
+      if (v instanceof Node) dd.appendChild(v); else dd.textContent = v == null ? "—" : String(v);
+      dl.appendChild(dd);
+    }
+    box.appendChild(dl);
+    if (extraNode) box.appendChild(extraNode);
+    host.appendChild(box);
+  }
+
+  function pwNode(pw) {
+    return el("span", "pw", pw);
+  }
+
+  // ---------------- ① 网卡 ----------------
+  async function loadIfaces() {
+    const tbody = $("iface-rows");
+    tbody.replaceChildren();
+    const loadingRow = el("tr");
+    loadingRow.appendChild(Object.assign(el("td", "empty", "加载中…"), { colSpan: 4 }));
+    tbody.appendChild(loadingRow);
+    try {
+      const data = await api("/api/iface_list");
+      tbody.replaceChildren();
+      if (!data.ifaces.length) {
+        const td = el("td", "empty", "没有找到无线网卡");
+        td.colSpan = 4;
+        tbody.appendChild(el("tr")).appendChild(td);
+        return;
+      }
+      for (const it of data.ifaces) {
+        const tr = el("tr");
+        tr.appendChild(Object.assign(el("td", "mono"), { textContent: it.name }));
+        tr.appendChild(Object.assign(el("td", "mono"), { textContent: it.phy || "—" }));
+
+        const modeTd = el("td");
+        const isMon = it.mode === "monitor";
+        // ★ monitor 是"已就绪"用青色；managed 是普通状态用中性灰。
+        //   不要用 .open（红色）—— 那会让人以为"开放网络"。
+        modeTd.appendChild(el("span", "tag" + (isMon ? "" : " muted"),
+          it.mode || "unknown"));
+        tr.appendChild(modeTd);
+
+        const actTd = el("td");
+        const mkBtn = (label, mode, cls) => {
+          const b = el("button", "btn sm " + (cls || "ghost"), label);
+          b.style.marginRight = "8px";
+          b.addEventListener("click", () => switchMode(it.name, mode));
+          return b;
+        };
+        actTd.appendChild(mkBtn("→ monitor", "monitor", isMon ? "ghost" : ""));
+        actTd.appendChild(mkBtn("→ managed", "managed", isMon ? "" : "ghost"));
+        tr.appendChild(actTd);
+
+        tbody.appendChild(tr);
+      }
+    } catch (e) {
+      tbody.replaceChildren();
+      const td = el("td", "empty", "加载失败：" + e.message);
+      td.colSpan = 4;
+      tbody.appendChild(el("tr")).appendChild(td);
+    }
+  }
+
+  async function switchMode(iface, mode) {
+    if (app.busy) { toast("有任务在跑，不能切模式", "err"); return; }
+    setBusy(true, "切换模式");
+    try {
+      const r = await postJSON("/api/iface_mode", { iface, mode });
+      resultBox($("iface-result"), "ok", "模式切换成功", [
+        ["接口", r.iface],
+        ["目标模式", r.mode],
+        ["是否有变化", r.changed ? "是（已切换）" : "否（本来就是该模式）"],
+      ]);
+      toast(iface + " → " + mode, "ok");
+      await loadIfaces();
+    } catch (e) {
+      resultBox($("iface-result"), "err", "模式切换失败", [["原因", e.message]]);
+      toast(e.message, "err");
+    } finally {
+      setBusy(false, "空闲");
+    }
+  }
+
+  // ---------------- ② 扫描 ----------------
+  let lastAps = [];
+
+  function sigClass(p) {
+    if (p == null) return "";
+    return p > -60 ? "good" : p > -75 ? "mid" : "bad";
+  }
+
+  function renderAps(result) {
+    lastAps = result.aps || [];
+    $("sta-count").textContent = result.station_count;
+
+    const tbody = $("ap-rows");
+    tbody.replaceChildren();
+
+    if (!lastAps.length) {
+      const td = el("td", "empty", "这次没扫到 AP —— 确认网卡是 monitor 模式、且射频在收帧");
+      td.colSpan = 7;
+      tbody.appendChild(el("tr")).appendChild(td);
+      return;
+    }
+
+    for (const ap of lastAps) {
+      const tr = el("tr");
+
+      const ssid = ap.essid && String(ap.essid).length ? ap.essid : "(隐藏)";
+      tr.appendChild(el("td", "", ssid));
+      tr.appendChild(Object.assign(el("td", "mono"), { textContent: ap.bssid }));
+      tr.appendChild(Object.assign(el("td", "num"), { textContent: ap.channel }));
+
+      const priv = (ap.privacy || "").toUpperCase();
+      const tdP = el("td");
+      tdP.appendChild(el("span", "tag" + (priv.includes("WPA3") ? " wpa3" : priv === "OPEN" ? " open" : ""),
+        priv || "—"));
+      if (ap.cipher && ap.cipher !== "—") {
+        const sep = el("span", "", " / ");
+        sep.style.color = "var(--dim2)";
+        tdP.appendChild(sep);
+        tdP.appendChild(el("span", "", ap.cipher));
+      }
+      tr.appendChild(tdP);
+
+      tr.appendChild(el("td", "", ap.authentication || "—"));
+      tr.appendChild(Object.assign(el("td", "num sig " + sigClass(ap.power)),
+        { textContent: ap.power != null ? ap.power : "—" }));
+
+      const tdA = el("td");
+      const b1 = el("button", "btn sm ghost", "抓握手");
+      b1.style.marginRight = "6px";
+      b1.addEventListener("click", () => {
+        $("capture-bssid").value = ap.bssid;
+        $("capture-channel").value = ap.channel || "";
+        $("capture-iface").value = $("scan-iface").value || "wlan0";
+        goto("capture");
+        toast("已填入 " + ap.bssid, "ok");
+      });
+      const b2 = el("button", "btn sm ghost", "PMKID");
+      b2.addEventListener("click", () => {
+        $("pmkid-bssid").value = ap.bssid;
+        $("pmkid-channel").value = ap.channel || "";
+        $("pmkid-iface").value = $("scan-iface").value || "wlan0";
+        goto("pmkid");
+        toast("已填入 " + ap.bssid, "ok");
+      });
+      const b3 = el("button", "btn sm ghost", "😈");
+      b3.title = "对这个 AP 断网（chaos）";
+      b3.style.marginLeft = "6px";
+      b3.addEventListener("click", () => {
+        $("chaos-bssid").value = ap.bssid;
+        $("chaos-channel").value = ap.channel || "";
+        $("chaos-iface").value = $("scan-iface").value || "wlan0";
+        goto("chaos");
+        toast("已填入 " + ap.bssid + "，确认信道后开始", "ok");
+      });
+      tdA.appendChild(b1); tdA.appendChild(b2); tdA.appendChild(b3);
+      tr.appendChild(tdA);
+
+      tbody.appendChild(tr);
+    }
+  }
+
+  // ---------------- 在线客户端（stations） ----------------
+  function renderStations(stations) {
+    const tbody = $("sta-rows");
+    tbody.replaceChildren();
+
+    if (!stations || !stations.length) {
+      const td = el("td", "empty", "这次没扫到客户端 —— 可能设备都睡了，或者信道不对");
+      td.colSpan = 6;
+      tbody.appendChild(el("tr")).appendChild(td);
+      return;
+    }
+
+    // 信号强的排前面
+    const sorted = [...stations].sort((a, b) => (b.power ?? -999) - (a.power ?? -999));
+
+    for (const st of sorted) {
+      const tr = el("tr");
+
+      tr.appendChild(Object.assign(el("td", "mono"), { textContent: st.mac }));
+      tr.appendChild(Object.assign(el("td", "num sig " + sigClass(st.power)),
+        { textContent: st.power != null ? st.power : "—" }));
+      tr.appendChild(Object.assign(el("td", "num"),
+        { textContent: st.packets != null ? st.packets : "—" }));
+      tr.appendChild(Object.assign(el("td", "mono"), { textContent: st.bssid || "未关联" }));
+      tr.appendChild(el("td", "",
+        (st.probed && st.probed.length) ? st.probed.join(", ") : "—"));
+
+      const tdA = el("td");
+      if (st.bssid) {
+        const b = el("button", "btn sm", "抓它的握手");
+        b.addEventListener("click", () => {
+          $("capture-bssid").value = st.bssid;
+          $("capture-station").value = st.mac;
+          $("capture-deauth").checked = true;
+          $("capture-iface").value = $("scan-iface").value || "wlan0";
+          goto("capture");
+          toast("已填好：踢 " + st.mac, "ok");
+        });
+        tdA.appendChild(b);
+
+        // 😈 只踢这个客户端
+        const b2 = el("button", "btn sm ghost", "😈");
+        b2.title = "只对这个客户端断网";
+        b2.style.marginLeft = "6px";
+        b2.addEventListener("click", () => {
+          // Station 不带信道，从上次扫描结果里按 AP 查出来
+          const ap = (lastAps || []).find(a => a.bssid === st.bssid);
+          $("chaos-bssid").value = st.bssid;
+          $("chaos-station").value = st.mac;
+          $("chaos-channel").value = (ap && ap.channel) || "";
+          $("chaos-iface").value = $("scan-iface").value || "wlan0";
+          goto("chaos");
+          toast("已填好：踢 " + st.mac, "ok");
+        });
+        tdA.appendChild(b2);
+      } else {
+        const span = el("span", "", "未关联 AP");
+        span.style.color = "var(--dim2)";
+        span.style.fontSize = "12.5px";
+        tdA.appendChild(span);
+      }
+      tr.appendChild(tdA);
+
+      tbody.appendChild(tr);
+    }
+  }
+
+  $("scan-form").addEventListener("submit", ev => {
+    ev.preventDefault();
+    runTask("scan", "/api/scan", {
+      iface: $("scan-iface").value.trim(),
+      duration: Number($("scan-duration").value),
+    }, result => {
+      renderAps(result);
+      renderStations(result.stations);               // ★ 客户端也要渲染
+      resultBox($("scan-result"), "ok", "扫描完成", [
+        ["接入点", result.ap_count + " 个"],
+        ["客户端", result.station_count + " 个"],
+      ]);
+      toast("扫到 " + result.ap_count + " 个 AP，" + result.station_count + " 个客户端", "ok");
+    });
+  });
+
+  // ---------------- ③ 抓握手 ----------------
+  $("capture-form").addEventListener("submit", ev => {
+    ev.preventDefault();
+    const ch = $("capture-channel").value.trim();
+    const st = $("capture-station").value.trim();
+    runTask("capture", "/api/capture", {
+      bssid: $("capture-bssid").value.trim(),
+      iface: $("capture-iface").value.trim(),
+      channel: ch ? Number(ch) : null,
+      duration: Number($("capture-duration").value),
+      deauth: $("capture-deauth").checked,
+      station: st ? st : null,
+      count: Number($("capture-count").value),
+    }, result => {
+      const ok = !!result.got_handshake;
+      const rows = [
+        ["BSSID", result.bssid],
+        ["信道", result.channel],
+        ["握手数", result.handshakes],
+        ["包数", result.packets],
+        ["耗时", result.duration + " 秒"],
+        ["文件", result.cap_path || "—"],
+      ];
+
+      // ★ 抓到握手就直接给一个"去破解"的入口，不用手抄路径
+      if (ok && result.cap_path) {
+        const btn = el("button", "btn sm", "用这个包直接破解 →");
+        btn.style.marginTop = "12px";
+        btn.addEventListener("click", () => {
+          $("crack-hash").value = result.cap_path;
+          goto("crack");
+          toast("已填入 " + result.cap_path, "ok");
+        });
+        resultBox($("capture-result"), "ok", "抓到了握手包", rows, btn);
+      } else {
+        resultBox($("capture-result"), "err", "没抓到握手", rows);
+      }
+
+      toast(ok ? "握手已保存" : "没抓到握手", ok ? "ok" : "err");
+    });
+  });
+
+  // ---------------- ④ PMKID ----------------
+  $("pmkid-form").addEventListener("submit", ev => {
+    ev.preventDefault();
+    const ch = $("pmkid-channel").value.trim();
+    runTask("pmkid", "/api/pmkid", {
+      bssid: $("pmkid-bssid").value.trim(),
+      iface: $("pmkid-iface").value.trim(),
+      channel: ch ? Number(ch) : null,
+      duration: Number($("pmkid-duration").value),
+    }, result => {
+      const ok = !!result.got_hash;
+      const rows = [
+        ["BSSID", result.bssid],
+        ["信道", result.channel],
+        ["PMKID", result.pmkid_counts + " 条"],
+        ["EAPOL", result.eapol_counts + " 条"],
+        ["结论", result.message],
+        ["hash 文件", result.hash_path || "—"],
+      ];
+      if (result.hash_path) {
+        const btn = el("button", "btn sm", "去破解这个文件 →");
+        btn.style.marginTop = "12px";
+        btn.addEventListener("click", () => {
+          $("crack-hash").value = result.hash_path;
+          goto("crack");
+        });
+        resultBox($("pmkid-result"), ok ? "ok" : "err",
+          ok ? "拿到可用 hash" : "没拿到 PMKID", rows, btn);
+      } else {
+        resultBox($("pmkid-result"), "err", "没拿到 PMKID", rows);
+      }
+      toast(ok ? "拿到 hash" : "没拿到", ok ? "ok" : "err");
+    });
+  });
+
+  // ---------------- ⑤ 破解 ----------------
+  $("crack-form").addEventListener("submit", ev => {
+    ev.preventDefault();
+    const bssid = $("crack-bssid").value.trim();
+    const to = Number($("crack-timeout").value);
+    runTask("crack", "/api/crack", {
+      hash_file: $("crack-hash").value.trim(),
+      wordlist: $("crack-wordlist").value.trim(),
+      bssid: bssid ? bssid : null,
+      timeout: to > 0 ? to : null,
+    }, result => {
+      const ok = !!result.cracked;
+      const rows = [
+        ["hash", result.hash_file + "（" + result.hash_count + " 条）"],
+        ["字典", result.wordlist],
+        ["耗时", result.elapsed + " 秒"],
+        ["速率", result.speed ? (result.speed / 1000).toFixed(1) + " kH/s" : "—"],
+        ["结论", result.message],
+      ];
+      if (ok) rows.unshift(["密码", pwNode(result.password)]);
+      resultBox($("crack-result"), ok ? "ok" : "err",
+        ok ? "破解成功" : "没有命中", rows);
+      toast(ok ? "密码：" + result.password : "字典里没有", ok ? "ok" : "err");
+    });
+  });
+
+  // ---------------- ⑥ chaos（彩蛋） ----------------
+  $("chaos-form").addEventListener("submit", ev => {
+    ev.preventDefault();
+    runTask("chaos", "/api/chaos", {
+      bssid: $("chaos-bssid").value.trim(),
+      iface: $("chaos-iface").value.trim(),
+      channel: Number($("chaos-channel").value),
+      station: $("chaos-station").value.trim() || "all",
+      duration: Number($("chaos-duration").value),
+    }, result => {
+      const ok = result.sent > 0;
+      resultBox($("chaos-result"), ok ? "ok" : "err",
+        ok ? "断网攻击结束" : "一批 deauth 都没发出去", [
+          ["BSSID",  result.bssid],
+          ["客户端", result.station],
+          ["批次数", result.sent + " 批（约 " + (result.sent * 64) + " 帧）"],
+          ["持续",   result.elapsed + " 秒"],
+          ["结论",   result.message],
+        ]);
+      toast(ok ? "踢了 " + result.sent + " 批" : "没发出去，看结论",
+        ok ? "ok" : "err");
+    });
+  });
+
+  // ---------------- 其他 ----------------
+  $("reload-iface").addEventListener("click", loadIfaces);
+  $("refresh").addEventListener("click", async () => {
+    try {
+      const s = await api("/api/state");
+      setBusy(!!s.busy, s.busy ? "服务端有任务在跑" : "空闲");
+      toast(s.busy ? "有任务在跑" : "空闲", "ok");
+    } catch (e) {
+      toast(e.message, "err");
+    }
+  });
+  $("clear-log").addEventListener("click", () => {
+    $("log").textContent = "等待操作…";
+    delete $("log").dataset.fresh;
+  });
+
+  $("token").value = store.token;
+  $("token").addEventListener("change", e => { store.token = e.target.value; });
+
+  // 刷新页面后恢复任务
+  if (app.taskId) {
+    setBusy(true, "恢复上次任务");
+    $("log-hint").textContent = "上次任务可恢复";
+    logLines(["检测到未完成的任务，正在继续轮询…"]);
+    pollTask("任务", r => {
+      $("log-hint").textContent = "任务完成";
+      toast("上次任务已完成", "ok");
+    });
+  }
+
+  loadIfaces();
+})();
+</script>
+</body>
+</html>
