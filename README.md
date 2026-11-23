@@ -60,9 +60,6 @@ wifitool.py          CLI 入口（命令不变：python wifitool.py ...）
 wifi_core/           核心功能：scan / capture / pmkid / crack / deauth / chaos
 wifi_infra/          基础设施：iface / runner / parse / render / errors / utils / adapters / tasks
 wifi_web/            Web 服务 webapp.py 与其 static/
-tests/               单元测试 test.py
-samples/             airodump / hashcat 样本数据
-.coach/              开发期验证/演示脚本
 ```
 
 
